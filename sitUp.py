@@ -9,12 +9,12 @@ mp_pose = mp.solutions.pose
 
 def calculate_angle(a, b, c):
     """Calculate the angle between three points."""
-    a = np.array(a)  
-    b = np.array(b)  
-    c = np.array(c)  
+    a = np.array(a)
+    b = np.array(b)
+    c = np.array(c)
 
     radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - \
-              np.arctan2(a[1] - b[1], a[0] - b[0])  
+              np.arctan2(a[1] - b[1], a[0] - b[0])
     angle = np.abs(radians * 180.0 / np.pi)
 
     if angle > 180.0:
@@ -139,5 +139,7 @@ def run_sit_up_exercise():
 if __name__ == "__main__":
     st.title("Sit-Up Exercise Tracker")
     st.write("Use your webcam to perform sit-ups. The app will count your sit-up repetitions.")
-
-    run_sit_up_exercise()
+    
+    # Add a Start button
+    if st.button("Start"):
+        run_sit_up_exercise()
