@@ -1,9 +1,10 @@
+from flask import Flask, render_template, Response
+import cv2
 import mediapipe as mp
 import numpy as np
-import cv2
-import streamlit as st
 import time
-from io import BytesIO
+
+app = Flask(__name__)
 
 mp_pose = mp.solutions.pose
 
@@ -54,18 +55,17 @@ class SitUpExercise:
 
         return counter, status
 
-def score_table(exercise, frame, counter, status):
+def score_table(frame, counter, status):
     """Display exercise score details on the frame."""
-    cv2.putText(frame, "Activity : " + exercise.replace("-", " "),
-                (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2,
-                cv2.LINE_AA)
+    cv2.putText(frame, "Activity : Sit-Up", (10, 65),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, "Counter : " + str(counter), (10, 100),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, "Status : " + str(status), (10, 135),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
     return frame
 
-def run_sit_up_exercise():
+def generate_frames():
     """Run the Sit-Up Exercise function using webcam feed."""
     cap = cv2.VideoCapture(0)  # webcam
 
@@ -78,13 +78,9 @@ def run_sit_up_exercise():
         counter = 0  # Counter for sit-ups
         status = True  # Movement status
 
-        # Create a placeholder for displaying the webcam feed
-        frame_placeholder = st.empty()
-
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                st.write("Failed to read video feed. Exiting...")
                 break
 
             frame = cv2.resize(frame, (800, 480), interpolation=cv2.INTER_AREA)
@@ -102,14 +98,12 @@ def run_sit_up_exercise():
                     landmarks = results.pose_landmarks.landmark
                     sit_up_exercise = SitUpExercise(landmarks)
                     counter, status = sit_up_exercise.perform_sit_up(counter, status)
-                else:
-                    print("No pose landmarks detected.")
             except Exception as e:
                 print(f"Error processing frame: {e}")
                 pass
 
             # Render score table
-            frame = score_table("Sit-Up", frame, counter, status)
+            frame = score_table(frame, counter, status)
 
             # Render detections (for landmarks)
             mp.solutions.drawing_utils.draw_landmarks(
@@ -124,22 +118,25 @@ def run_sit_up_exercise():
                                                        circle_radius=2),
             )
 
-            # Convert the frame to a byte object
+            # Encode the frame as a byte stream
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
 
-            # Update the frame in the placeholder
-            frame_placeholder.image(frame_bytes)
-
-            # Add a small delay to prevent overloading CPU
-            time.sleep(0.05)
+            # Use Flask's response generator to stream video frames
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
         cap.release()
 
+@app.route('/')
+def index():
+    """Render the index HTML template."""
+    return render_template('index.html')
+
+@app.route('/video_feed')
+def video_feed():
+    """Route for video feed."""
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 if __name__ == "__main__":
-    st.title("Sit-Up Exercise Tracker")
-    st.write("Use your webcam to perform sit-ups. The app will count your sit-up repetitions.")
-    
-    # Add a Start button
-    if st.button("Start"):
-        run_sit_up_exercise()
+    app.run(debug=True)
